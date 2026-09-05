@@ -1,0 +1,16 @@
+{
+  "name": "食序 · 家庭餐桌管理",
+  "short_name": "食序",
+  "description": "记录采购、菜谱、库存和每日用餐计划。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#f4c95d",
+  "background_color": "#f7f8f5",
+  "icons": [
+    { "src": "icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

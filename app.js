@@ -28,7 +28,7 @@ const initialState = {
     { name: "酸奶", price: 14, meals: 4, bought: false }
   ],
   inventory: [
-    { name: "白菜", meals: 1.5, expiry: "8月27日", color: "" }, { name: "鸡蛋", meals: 4, expiry: "8月31日", color: "yellow" },
+    { name: "白菜", meals: 2, expiry: "8月27日", color: "" }, { name: "鸡蛋", meals: 4, expiry: "8月31日", color: "yellow" },
     { name: "土豆", meals: 3, expiry: "—", color: "blue" }, { name: "番茄", meals: 1, expiry: "8月26日", color: "coral" },
     { name: "胡萝卜", meals: 2, expiry: "8月30日", color: "yellow" }
   ],
@@ -83,6 +83,17 @@ function normalizeRecipe(recipe) {
   recipe.link ||= "";
   return recipe;
 }
+function wholeMeals(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : fallback;
+}
+function normalizeMealCounts(target) {
+  (target.shopping || []).forEach(item => { item.meals = wholeMeals(item.meals, 1); });
+  (target.inventory || []).forEach(item => { item.meals = wholeMeals(item.meals); });
+  (target.purchaseHistory || []).forEach(record => record.items?.forEach(item => { if (typeof item !== "string") item.meals = wholeMeals(item.meals, 1); }));
+  (target.logs || []).forEach(log => { log.amount = Math.round(Number(log.amount) || 0); });
+}
+normalizeMealCounts(state);
 state.recipes = state.recipes.map(normalizeRecipe);
 state.schemaVersion = 4;
 state.recipeMode ||= "list";
@@ -107,6 +118,7 @@ stateDb.then(db => {
     state = { ...initialState, ...request.result, page: "home", selected: TODAY };
     state.recipes = (state.recipes || []).map(normalizeRecipe);
     state.purchaseHistory = (state.purchaseHistory || []).map(normalizePurchaseRecord);
+    normalizeMealCounts(state);
     render();
   };
 });
@@ -154,9 +166,9 @@ function foodCatalog() {
 function normalizePurchaseRecord(record) {
   delete record.beforeMeals;
   record.items = (record.items || []).map(item => {
-    if (typeof item !== "string") return { name: item.name, meals: Number(item.meals) || 1, price: Number(item.price) || 0 };
+    if (typeof item !== "string") return { name: item.name, meals: wholeMeals(item.meals, 1), price: Number(item.price) || 0 };
     const match = item.match(/^(.*?)(?:\s+(\d+(?:\.\d+)?)顿)?$/);
-    return { name: match?.[1] || item, meals: Number(match?.[2]) || 1, price: 0 };
+    return { name: match?.[1] || item, meals: wholeMeals(match?.[2], 1), price: 0 };
   });
   return record;
 }
@@ -251,7 +263,7 @@ function renderShopping() {
 }
 
 function renderInventory() {
-  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 0.5 顿" data-stock-minus="${index}">−</button><input class="stock-quantity" data-stock-meals="${index}" type="number" min="0" step="0.5" value="${item.meals}" aria-label="${escapeHtml(item.name)}库存顿数"><button type="button" title="增加 0.5 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
+  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 1 顿" data-stock-minus="${index}">−</button><input class="stock-quantity" data-stock-meals="${index}" type="number" min="0" step="1" value="${item.meals}" aria-label="${escapeHtml(item.name)}库存顿数"><button type="button" title="增加 1 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
   const logs = state.logs.slice().reverse().slice(0, 12);
   inventoryLogs.innerHTML = logs.length ? logs.map(log => `<div class="row"><div><div class="item-name">${escapeHtml(log.name)}</div><div class="item-meta">${escapeHtml(log.date || "未记录日期")} · ${escapeHtml(log.reason || "调整")}</div></div><b class="${Number(log.amount) < 0 ? "negative" : "positive"}">${Number(log.amount) > 0 ? "+" : ""}${log.amount}顿</b></div>`).join("") : `<div class="empty">还没有库存调整记录</div>`;
 }
@@ -260,8 +272,8 @@ function adjustInventoryBy(index, delta, reason = "快速调整") {
   const item = state.inventory[index];
   if (!item) return;
   const current = Number(item.meals) || 0;
-  const next = Math.max(0, Number((current + delta).toFixed(2)));
-  const actualDelta = Number((next - current).toFixed(2));
+  const next = Math.max(0, Math.round(current + delta));
+  const actualDelta = next - current;
   if (!actualDelta) return;
   item.meals = next;
   item.lastReason = reason;
@@ -273,8 +285,8 @@ function setInventoryMeals(index, value, reason = "手动调整") {
   const item = state.inventory[index];
   if (!item) return;
   const current = Number(item.meals) || 0;
-  const next = Math.max(0, Number((Number(value) || 0).toFixed(2)));
-  const actualDelta = Number((next - current).toFixed(2));
+  const next = wholeMeals(value);
+  const actualDelta = next - current;
   if (!actualDelta) return;
   item.meals = next;
   item.lastReason = reason;
@@ -437,7 +449,7 @@ function compressMealPhoto(file) {
 }
 
 function openShoppingModal() {
-  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="shopName" placeholder="例如：西兰花"></div><div class="field"><label>金额（元）</label><input id="shopPrice" type="number" value="8"></div><div class="field"><label>预计可用顿数</label><input id="shopMealsInput" type="number" step="0.5" value="2"></div><div class="field"><label>保质期（选填）</label><input id="shopExpiry" placeholder="例如：8月30日"></div></div>`;
+  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="shopName" placeholder="例如：西兰花"></div><div class="field"><label>金额（元）</label><input id="shopPrice" type="number" value="8"></div><div class="field"><label>预计可用顿数</label><input id="shopMealsInput" type="number" min="1" step="1" value="2"></div><div class="field"><label>保质期（选填）</label><input id="shopExpiry" placeholder="例如：8月30日"></div></div>`;
   openModal(modalFrame("添加采购物品", body, "加入清单", "saveShopping"));
 }
 
@@ -481,14 +493,14 @@ function syncDraftFromEditor() {
 
 function openAdjustModal(index = null) {
   const item = index === null ? null : state.inventory[index];
-  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>变动顿数</label><input id="aMeals" type="number" step="0.5" value="0.5" placeholder="增加填正数，减少填负数"></div><div class="field full"><small class="editor-hint">增加填正数，减少填负数；库存不会低于 0。日期会自动记录。</small></div><div class="field full"><label>变动原因</label><select id="aReason"><option>手动调整</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
+  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>变动顿数</label><input id="aMeals" type="number" step="1" value="1" placeholder="增加填正数，减少填负数"></div><div class="field full"><small class="editor-hint">增加填正数，减少填负数；库存不会低于 0。日期会自动记录。</small></div><div class="field full"><label>变动原因</label><select id="aReason"><option>手动调整</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
   openModal(modalFrame("记录库存变动", body, "保存记录", "saveAdjust", item ? `data-index="${index}"` : ""));
 }
 
 function openPurchaseEditModal(index) {
   const record = state.purchaseHistory[index];
   if (!record) return;
-  const items = record.items.map((item, itemIndex) => `<div class="purchase-edit-row"><input data-purchase-name="${itemIndex}" value="${escapeHtml(item.name)}" readonly><input data-purchase-meals="${itemIndex}" type="number" min="0" step="0.5" value="${item.meals}"><input data-purchase-price="${itemIndex}" type="number" min="0" step="0.01" value="${item.price}"></div>`).join("");
+  const items = record.items.map((item, itemIndex) => `<div class="purchase-edit-row"><input data-purchase-name="${itemIndex}" value="${escapeHtml(item.name)}" readonly><input data-purchase-meals="${itemIndex}" type="number" min="0" step="1" value="${item.meals}"><input data-purchase-price="${itemIndex}" type="number" min="0" step="0.01" value="${item.price}"></div>`).join("");
   const body = `<div class="form-grid"><div class="field"><label>采购日期</label><input id="purchaseEditDate" type="date" value="${record.date}"></div><div class="field"><label>采购前库存种类</label><input id="purchaseEditBeforeKinds" type="number" min="0" value="${record.beforeKinds || 0}"></div><div class="field full"><label>采购明细（名称 / 顿数 / 金额）</label><div class="purchase-edit-head"><span>食材</span><span>顿数</span><span>金额</span></div><div class="purchase-edit-list">${items}</div></div></div>`;
   openModal(modalFrame("编辑采购记录", body, "保存修改", "savePurchaseEdit", `data-index="${index}"`));
 }
@@ -517,9 +529,9 @@ document.addEventListener("click", event => {
   const remove = event.target.closest("[data-remove]");
   if (remove) { state.shopping.splice(Number(remove.dataset.remove), 1); render(); return; }
   const mealMinus = event.target.closest("[data-meal-minus]");
-  if (mealMinus) { const item = state.shopping[Number(mealMinus.dataset.mealMinus)]; item.meals = Math.max(1, Number(item.meals) - 1); render(); return; }
+  if (mealMinus) { const item = state.shopping[Number(mealMinus.dataset.mealMinus)]; item.meals = Math.max(1, wholeMeals(item.meals, 1) - 1); render(); return; }
   const mealPlus = event.target.closest("[data-meal-plus]");
-  if (mealPlus) { const item = state.shopping[Number(mealPlus.dataset.mealPlus)]; item.meals = Number(item.meals) + 1; render(); return; }
+  if (mealPlus) { const item = state.shopping[Number(mealPlus.dataset.mealPlus)]; item.meals = wholeMeals(item.meals, 1) + 1; render(); return; }
   const foodToggle = event.target.closest("[data-food-toggle]");
   if (foodToggle) {
     const picker = foodToggle.closest("[data-food-picker]");
@@ -538,9 +550,9 @@ document.addEventListener("click", event => {
   const waste = event.target.closest("[data-waste]");
   if (waste) { openAdjustModal(Number(waste.dataset.waste)); return; }
   const stockMinus = event.target.closest("[data-stock-minus]");
-  if (stockMinus) { adjustInventoryBy(Number(stockMinus.dataset.stockMinus), -0.5); return; }
+  if (stockMinus) { adjustInventoryBy(Number(stockMinus.dataset.stockMinus), -1); return; }
   const stockPlus = event.target.closest("[data-stock-plus]");
-  if (stockPlus) { adjustInventoryBy(Number(stockPlus.dataset.stockPlus), 0.5); return; }
+  if (stockPlus) { adjustInventoryBy(Number(stockPlus.dataset.stockPlus), 1); return; }
   const use = event.target.closest("[data-use-recipe]");
   if (use) { openMealModal("dinner", state.recipes[Number(use.dataset.useRecipe)].name); return; }
   const viewRecipe = event.target.closest("[data-view-recipe]");
@@ -675,7 +687,7 @@ document.addEventListener("click", event => {
   if (event.target.id === "saveShopping") {
     const name = shopName.value.trim();
     if (!name) return;
-    state.shopping.push({ name, price: Number(shopPrice.value) || 0, meals: Number(shopMealsInput.value) || 1, bought: false, expiry: shopExpiry.value.trim() });
+    state.shopping.push({ name, price: Number(shopPrice.value) || 0, meals: wholeMeals(shopMealsInput.value, 1), bought: false, expiry: shopExpiry.value.trim() });
     closeModal(); render();
   }
   if (event.target.id === "savePurchaseEdit") {
@@ -685,7 +697,7 @@ document.addEventListener("click", event => {
     const oldItems = record.items.map(item => ({ ...item }));
     record.date = purchaseEditDate.value;
     record.beforeKinds = Number(purchaseEditBeforeKinds.value) || 0;
-    record.items = record.items.map((item, itemIndex) => ({ name: document.querySelector(`[data-purchase-name="${itemIndex}"]`).value.trim() || item.name, meals: Number(document.querySelector(`[data-purchase-meals="${itemIndex}"]`).value) || 0, price: Number(document.querySelector(`[data-purchase-price="${itemIndex}"]`).value) || 0 }));
+    record.items = record.items.map((item, itemIndex) => ({ name: document.querySelector(`[data-purchase-name="${itemIndex}"]`).value.trim() || item.name, meals: wholeMeals(document.querySelector(`[data-purchase-meals="${itemIndex}"]`).value), price: Number(document.querySelector(`[data-purchase-price="${itemIndex}"]`).value) || 0 }));
     record.amount = record.items.reduce((sum, item) => sum + item.price, 0);
     oldItems.forEach(oldItem => { const next = record.items.find(item => item.name === oldItem.name); const current = state.inventory.find(item => item.name === oldItem.name); if (current && next) current.meals += next.meals - oldItem.meals; });
     closeModal(); render(); return;
@@ -698,7 +710,7 @@ document.addEventListener("click", event => {
     const index = event.target.dataset.index === undefined ? state.inventory.findIndex(item => item.name === aName.value.trim()) : Number(event.target.dataset.index);
     const name = aName.value.trim();
     if (!name) return;
-    const delta = Number(aMeals.value) || 0;
+    const delta = Math.round(Number(aMeals.value) || 0);
     if (!delta) return;
     let actualDelta = delta;
     if (index < 0) { if (delta < 0) return; state.inventory.push({ name, meals: delta, expiry: "—", color: "", lastReason: aReason.value }); }
@@ -760,7 +772,7 @@ document.addEventListener("change", event => {
       const imported = JSON.parse(reader.result);
       if (!imported || !Array.isArray(imported.recipes) || !Array.isArray(imported.inventory) || !Array.isArray(imported.purchaseHistory)) throw new Error("invalid backup");
       state = { ...imported, page: "home", selected: TODAY, schemaVersion: 4, logs: imported.logs || [], mealRecords: imported.mealRecords || {}, plans: imported.plans || {}, shopping: imported.shopping || [], statsRange: imported.statsRange || "week" };
-      state.recipes = state.recipes.map(normalizeRecipe); state.purchaseHistory = state.purchaseHistory.map(normalizePurchaseRecord); save(); render();
+      state.recipes = state.recipes.map(normalizeRecipe); state.purchaseHistory = state.purchaseHistory.map(normalizePurchaseRecord); normalizeMealCounts(state); save(); render();
       showToast(`导入成功：${state.recipes.length} 个菜谱、${state.inventory.length} 项库存、${state.purchaseHistory.length} 条采购记录`);
     } catch { showToast("备份文件格式不正确，无法导入。", "error"); }
     importFile.value = "";

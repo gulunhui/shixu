@@ -251,9 +251,22 @@ function renderShopping() {
 }
 
 function renderInventory() {
-  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><b>${item.meals}顿</b><button class="mini" data-waste="${index}">调整</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
+  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 0.5 顿" data-stock-minus="${index}">−</button><b>${item.meals}顿</b><button type="button" title="增加 0.5 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
   const logs = state.logs.slice().reverse().slice(0, 12);
   inventoryLogs.innerHTML = logs.length ? logs.map(log => `<div class="row"><div><div class="item-name">${escapeHtml(log.name)}</div><div class="item-meta">${escapeHtml(log.date || "未记录日期")} · ${escapeHtml(log.meal || "不归属餐次")} · ${escapeHtml(log.reason || "调整")}</div></div><b class="${Number(log.amount) < 0 ? "negative" : "positive"}">${Number(log.amount) > 0 ? "+" : ""}${log.amount}顿</b></div>`).join("") : `<div class="empty">还没有库存调整记录</div>`;
+}
+
+function adjustInventoryBy(index, delta, reason = "快速调整") {
+  const item = state.inventory[index];
+  if (!item) return;
+  const current = Number(item.meals) || 0;
+  const next = Math.max(0, Number((current + delta).toFixed(2)));
+  const actualDelta = Number((next - current).toFixed(2));
+  if (!actualDelta) return;
+  item.meals = next;
+  item.lastReason = reason;
+  state.logs.push({ type: "adjust", name: item.name, amount: actualDelta, reason, date: state.selected || TODAY, meal: "" });
+  render();
 }
 
 function renderStats() {
@@ -345,7 +358,7 @@ function render() {
   document.querySelectorAll(".page").forEach(page => page.classList.toggle("active", page.dataset.page === state.page));
   globalDatebar.hidden = state.page !== "home";
   const recipeTitle = state.recipeMode === "edit" ? (editingRecipeIndex === null ? "新建菜谱" : "编辑菜谱") : (state.recipes[state.activeRecipe]?.name || "菜谱详情");
-  const labels = { home: ["今天吃什么？", "把买好的食材，变成接下来几天的计划。"], recipes: ["菜谱", "少填写，多选择，把常做的菜记下来。"], "recipe-detail": [recipeTitle, state.recipeMode === "edit" ? "添加食材总表，再用步骤组织烹饪过程。" : "查看完整食材与烹饪步骤。"], shopping: ["采购", "准备本次清单，也可以回看每次买了什么。"], inventory: ["库存", "按顿数管理剩余食材，并保留调整原因。"], stats: ["统计", "从采购、做菜频率和浪费中发现规律。"] };
+  const labels = { home: ["今天吃什么？", "把买好的食材，变成接下来几天的计划。"], recipes: ["菜谱", "少填写，多选择，把常做的菜记下来。"], "recipe-detail": [recipeTitle, state.recipeMode === "edit" ? "添加食材总表，再用步骤组织烹饪过程。" : "查看完整食材与烹饪步骤。"], shopping: ["采购", "准备本次清单，也可以回看每次买了什么。"], inventory: ["库存", "按顿数管理剩余食材，可直接增减并保留记录。"], stats: ["统计", "从采购、做菜频率和浪费中发现规律。"] };
   [pageTitle.textContent, pageSubtitle.textContent] = labels[state.page];
   renderHome(); renderShopping(); renderInventory(); renderRecipes(); renderStats(); renderRecipeWorkspace(); save();
 }
@@ -446,8 +459,8 @@ function syncDraftFromEditor() {
 
 function openAdjustModal(index = null) {
   const item = index === null ? null : state.inventory[index];
-  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>调整方向</label><select id="aDirection"><option value="add">增加库存</option><option value="remove">减少库存</option></select></div><div class="field"><label>调整顿数</label><input id="aMeals" type="number" min="0.5" step="0.5" value="1"></div><div class="field"><label>日期</label><input id="aDate" type="date" value="${state.selected}"></div><div class="field"><label>归属餐次</label><select id="aMeal"><option>不归属具体餐次</option><option>早饭</option><option>午饭</option><option>晚饭</option><option>宵夜</option></select></div><div class="field full"><label>调整原因</label><select id="aReason"><option>手动消耗</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
-  openModal(modalFrame("调整库存", body, "保存调整", "saveAdjust", item ? `data-index="${index}"` : ""));
+  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>变动顿数</label><input id="aMeals" type="number" step="0.5" value="0.5" placeholder="增加填正数，减少填负数"></div><div class="field full"><small class="editor-hint">直接填写带正负号的顿数，例如 +0.5 或 -1；库存不会低于 0。</small></div><div class="field"><label>日期</label><input id="aDate" type="date" value="${state.selected}"></div><div class="field"><label>归属餐次</label><select id="aMeal"><option>不归属具体餐次</option><option>早饭</option><option>午饭</option><option>晚饭</option><option>宵夜</option></select></div><div class="field full"><label>调整原因</label><select id="aReason"><option>手动消耗</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
+  openModal(modalFrame("记录库存变动", body, "保存记录", "saveAdjust", item ? `data-index="${index}"` : ""));
 }
 
 function openPurchaseEditModal(index) {
@@ -486,6 +499,10 @@ document.addEventListener("click", event => {
   if (mealPlus) { const item = state.shopping[Number(mealPlus.dataset.mealPlus)]; item.meals = Number(item.meals) + 1; render(); return; }
   const waste = event.target.closest("[data-waste]");
   if (waste) { openAdjustModal(Number(waste.dataset.waste)); return; }
+  const stockMinus = event.target.closest("[data-stock-minus]");
+  if (stockMinus) { adjustInventoryBy(Number(stockMinus.dataset.stockMinus), -0.5); return; }
+  const stockPlus = event.target.closest("[data-stock-plus]");
+  if (stockPlus) { adjustInventoryBy(Number(stockPlus.dataset.stockPlus), 0.5); return; }
   const use = event.target.closest("[data-use-recipe]");
   if (use) { openMealModal("dinner", state.recipes[Number(use.dataset.useRecipe)].name); return; }
   const viewRecipe = event.target.closest("[data-view-recipe]");
@@ -643,11 +660,19 @@ document.addEventListener("click", event => {
     const index = event.target.dataset.index === undefined ? state.inventory.findIndex(item => item.name === aName.value.trim()) : Number(event.target.dataset.index);
     const name = aName.value.trim();
     if (!name) return;
-    const amount = Number(aMeals.value) || 0;
-    const delta = aDirection.value === "add" ? amount : -amount;
+    const delta = Number(aMeals.value) || 0;
+    if (!delta) return;
+    let actualDelta = delta;
     if (index < 0) { if (delta < 0) return; state.inventory.push({ name, meals: delta, expiry: "—", color: "", lastReason: aReason.value }); }
-    else { state.inventory[index].meals = Math.max(0, state.inventory[index].meals + delta); state.inventory[index].lastReason = aReason.value; }
-    state.logs.push({ type: "adjust", name, amount: delta, reason: aReason.value, date: aDate.value, meal: aMeal.value });
+    else {
+      const current = Number(state.inventory[index].meals) || 0;
+      const next = Math.max(0, Number((current + delta).toFixed(2)));
+      actualDelta = Number((next - current).toFixed(2));
+      if (!actualDelta) return;
+      state.inventory[index].meals = next;
+      state.inventory[index].lastReason = aReason.value;
+    }
+    state.logs.push({ type: "adjust", name, amount: actualDelta, reason: aReason.value, date: aDate.value, meal: aMeal.value });
     closeModal(); render();
   }
 });

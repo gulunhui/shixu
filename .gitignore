@@ -1,6 +1,7 @@
 # Local browser data and backups
 *.json.bak
 *.backup.json
+shixu-seed-*.json
 
 # Local development artifacts
 .DS_Store
@@ -8,6 +9,7 @@ Thumbs.db
 node_modules/
 dist/
 coverage/
+work/
 
 # Editor and OS metadata
 .vscode/

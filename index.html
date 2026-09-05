@@ -64,8 +64,8 @@
       </section>
 
       <section class="page" data-page="inventory">
-        <div class="section-head"><div><h2>当前库存</h2><p>所有还没用完的食材都在这里。</p></div><button class="primary" id="adjustInventory">＋ 调整库存</button></div>
-        <div class="panel"><div class="notice">完成做菜记录后才会扣减库存。手动增减会记录原因和日期，方便之后复盘。</div><div class="inventory-list spaced" id="inventoryList"></div><div class="section-head inventory-log-head"><div><h2>调整记录</h2><p>查看库存变化的来源。</p></div></div><div class="inventory-list" id="inventoryLogs"></div></div>
+        <div class="section-head"><div><h2>当前库存</h2><p>所有还没用完的食材都在这里。</p></div><div class="inventory-head-actions"><span class="inventory-mode" id="inventoryMode">查询模式</span><button class="primary" id="editInventory">编辑库存</button><button class="ghost" id="adjustInventory">记录变动</button></div></div>
+        <div class="panel"><div class="notice">平时为查询模式。进入编辑后，修改会先暂存，点击“保存修改”才会更新库存并写入记录。</div><div class="inventory-edit-bar" id="inventoryEditBar"></div><div class="inventory-list spaced" id="inventoryList"></div><div class="section-head inventory-log-head"><div><h2>调整记录</h2><p>查看库存变化的来源。</p></div></div><div class="inventory-list" id="inventoryLogs"></div></div>
       </section>
 
       <section class="page" data-page="stats">

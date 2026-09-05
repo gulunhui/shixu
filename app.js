@@ -177,6 +177,8 @@ let draftRecipe = null;
 let editingRecipeIndex = null;
 let pendingMealPhoto = "";
 let deferredInstallPrompt = null;
+let inventoryEditMode = false;
+let inventoryDraft = null;
 
 if ("serviceWorker" in navigator && window.isSecureContext) {
   navigator.serviceWorker.register("./service-worker.js").catch(() => {});
@@ -263,7 +265,10 @@ function renderShopping() {
 }
 
 function renderInventory() {
-  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 1 顿" data-stock-minus="${index}">−</button><input class="stock-quantity" data-stock-meals="${index}" type="number" min="0" step="1" value="${item.meals}" aria-label="${escapeHtml(item.name)}库存顿数"><button type="button" title="增加 1 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
+  const quantities = inventoryDraft || state.inventory.map(item => item.meals);
+  inventoryMode.textContent = inventoryEditMode ? "编辑模式 · 未保存" : "查询模式";
+  inventoryEditBar.innerHTML = inventoryEditMode ? `<span>修改尚未保存</span><div><button class="ghost" id="cancelInventoryEdit">取消</button><button class="primary" id="saveInventoryEdit">保存修改</button></div>` : "";
+  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => { const quantity = quantities[index]; const controls = inventoryEditMode ? `<span class="stock-stepper"><button type="button" title="减少 1 顿" data-stock-minus="${index}">−</button><input class="stock-quantity" data-stock-meals="${index}" type="number" min="0" step="1" value="${quantity}" aria-label="${escapeHtml(item.name)}库存顿数"><button type="button" title="增加 1 顿" data-stock-plus="${index}">＋</button></span>` : `<b class="stock-readonly-quantity">${quantity}顿</b>`; const recordButton = inventoryEditMode ? "" : `<button class="mini" data-waste="${index}">记录</button>`; return `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, quantity / 5 * 100))}%"></i></div></div><div class="stock-action">${controls}${recordButton}</div></div>`; }).join("") : `<div class="empty">当前没有库存</div>`;
   const logs = state.logs.slice().reverse().slice(0, 12);
   inventoryLogs.innerHTML = logs.length ? logs.map(log => `<div class="row"><div><div class="item-name">${escapeHtml(log.name)}</div><div class="item-meta">${escapeHtml(log.date || "未记录日期")} · ${escapeHtml(log.reason || "调整")}</div></div><b class="${Number(log.amount) < 0 ? "negative" : "positive"}">${Number(log.amount) > 0 ? "+" : ""}${log.amount}顿</b></div>`).join("") : `<div class="empty">还没有库存调整记录</div>`;
 }
@@ -291,6 +296,47 @@ function setInventoryMeals(index, value, reason = "手动调整") {
   item.meals = next;
   item.lastReason = reason;
   state.logs.push({ type: "adjust", name: item.name, amount: actualDelta, reason, date: state.selected || TODAY, meal: "" });
+  render();
+}
+
+function beginInventoryEdit() {
+  inventoryEditMode = true;
+  inventoryDraft = state.inventory.map(item => wholeMeals(item.meals));
+  render();
+}
+
+function cancelInventoryEdit() {
+  inventoryEditMode = false;
+  inventoryDraft = null;
+  render();
+}
+
+function adjustInventoryDraft(index, delta) {
+  if (!inventoryEditMode || !inventoryDraft) return;
+  inventoryDraft[index] = Math.max(0, wholeMeals(inventoryDraft[index]) + delta);
+  render();
+}
+
+function setInventoryDraft(index, value) {
+  if (!inventoryEditMode || !inventoryDraft) return;
+  inventoryDraft[index] = wholeMeals(value);
+  render();
+}
+
+function saveInventoryEdit() {
+  if (!inventoryEditMode || !inventoryDraft) return;
+  state.inventory.forEach((item, index) => {
+    const next = wholeMeals(inventoryDraft[index]);
+    const current = wholeMeals(item.meals);
+    const delta = next - current;
+    if (!delta) return;
+    item.meals = next;
+    item.lastReason = "手动调整";
+    state.logs.push({ type: "adjust", name: item.name, amount: delta, reason: "手动调整", date: state.selected || TODAY, meal: "" });
+  });
+  inventoryEditMode = false;
+  inventoryDraft = null;
+  showToast("库存修改已保存");
   render();
 }
 
@@ -532,6 +578,9 @@ document.addEventListener("click", event => {
   if (mealMinus) { const item = state.shopping[Number(mealMinus.dataset.mealMinus)]; item.meals = Math.max(1, wholeMeals(item.meals, 1) - 1); render(); return; }
   const mealPlus = event.target.closest("[data-meal-plus]");
   if (mealPlus) { const item = state.shopping[Number(mealPlus.dataset.mealPlus)]; item.meals = wholeMeals(item.meals, 1) + 1; render(); return; }
+  if (event.target.id === "editInventory") { beginInventoryEdit(); return; }
+  if (event.target.id === "cancelInventoryEdit") { cancelInventoryEdit(); return; }
+  if (event.target.id === "saveInventoryEdit") { saveInventoryEdit(); return; }
   const foodToggle = event.target.closest("[data-food-toggle]");
   if (foodToggle) {
     const picker = foodToggle.closest("[data-food-picker]");
@@ -550,9 +599,9 @@ document.addEventListener("click", event => {
   const waste = event.target.closest("[data-waste]");
   if (waste) { openAdjustModal(Number(waste.dataset.waste)); return; }
   const stockMinus = event.target.closest("[data-stock-minus]");
-  if (stockMinus) { adjustInventoryBy(Number(stockMinus.dataset.stockMinus), -1); return; }
+  if (stockMinus) { adjustInventoryDraft(Number(stockMinus.dataset.stockMinus), -1); return; }
   const stockPlus = event.target.closest("[data-stock-plus]");
-  if (stockPlus) { adjustInventoryBy(Number(stockPlus.dataset.stockPlus), 1); return; }
+  if (stockPlus) { adjustInventoryDraft(Number(stockPlus.dataset.stockPlus), 1); return; }
   const use = event.target.closest("[data-use-recipe]");
   if (use) { openMealModal("dinner", state.recipes[Number(use.dataset.useRecipe)].name); return; }
   const viewRecipe = event.target.closest("[data-view-recipe]");
@@ -739,7 +788,7 @@ document.addEventListener("change", event => {
     return;
   }
   if (event.target.matches("[data-stock-meals]")) {
-    setInventoryMeals(Number(event.target.dataset.stockMeals), event.target.value);
+    setInventoryDraft(Number(event.target.dataset.stockMeals), event.target.value);
     return;
   }
   if (!event.target.matches("[data-buy]")) return;

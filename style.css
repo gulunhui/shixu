@@ -99,7 +99,8 @@ button { cursor: pointer; border: 0; background: none; color: inherit; }
 .stock-stepper { display: inline-flex; align-items: center; gap: 6px; }
 .stock-stepper button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; display: grid; place-items: center; background: #fff; color: var(--mint-strong); font-size: 18px; line-height: 1; }
 .stock-stepper button:hover { border-color: var(--mint); background: #f5faf7; }
-.stock-stepper b { min-width: 42px; text-align: center; color: #52635c; font-size: 13px; }
+.stock-quantity { width: 58px; height: 28px; padding: 0 5px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #52635c; text-align: center; font-size: 13px; font-weight: 700; }
+.stock-quantity:focus { outline: 2px solid rgba(93, 179, 143, .22); border-color: var(--mint); }
 .template-row { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .template-row b, .template-row span { display: block; }
 .template-row span { margin-top: 2px; color: var(--muted); font-size: 11px; }

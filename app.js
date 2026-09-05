@@ -251,9 +251,9 @@ function renderShopping() {
 }
 
 function renderInventory() {
-  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 0.5 顿" data-stock-minus="${index}">−</button><b>${item.meals}顿</b><button type="button" title="增加 0.5 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
+  inventoryList.innerHTML = state.inventory.length ? state.inventory.map((item, index) => `<div class="row"><div class="stock-main"><div class="item-left"><span class="food-dot ${item.color || ""}"></span><div><div class="item-name">${escapeHtml(item.name)}</div><div class="item-meta">${item.expiry === "—" ? "未填写保质期" : `${escapeHtml(item.expiry)}前`} · ${escapeHtml(item.lastReason || "来自采购")}</div></div></div><div class="progress"><i style="width:${Math.min(100, Math.max(12, item.meals / 5 * 100))}%"></i></div></div><div class="stock-action"><span class="stock-stepper"><button type="button" title="减少 0.5 顿" data-stock-minus="${index}">−</button><input class="stock-quantity" data-stock-meals="${index}" type="number" min="0" step="0.5" value="${item.meals}" aria-label="${escapeHtml(item.name)}库存顿数"><button type="button" title="增加 0.5 顿" data-stock-plus="${index}">＋</button></span><button class="mini" data-waste="${index}">记录</button></div></div>`).join("") : `<div class="empty">当前没有库存</div>`;
   const logs = state.logs.slice().reverse().slice(0, 12);
-  inventoryLogs.innerHTML = logs.length ? logs.map(log => `<div class="row"><div><div class="item-name">${escapeHtml(log.name)}</div><div class="item-meta">${escapeHtml(log.date || "未记录日期")} · ${escapeHtml(log.meal || "不归属餐次")} · ${escapeHtml(log.reason || "调整")}</div></div><b class="${Number(log.amount) < 0 ? "negative" : "positive"}">${Number(log.amount) > 0 ? "+" : ""}${log.amount}顿</b></div>`).join("") : `<div class="empty">还没有库存调整记录</div>`;
+  inventoryLogs.innerHTML = logs.length ? logs.map(log => `<div class="row"><div><div class="item-name">${escapeHtml(log.name)}</div><div class="item-meta">${escapeHtml(log.date || "未记录日期")} · ${escapeHtml(log.reason || "调整")}</div></div><b class="${Number(log.amount) < 0 ? "negative" : "positive"}">${Number(log.amount) > 0 ? "+" : ""}${log.amount}顿</b></div>`).join("") : `<div class="empty">还没有库存调整记录</div>`;
 }
 
 function adjustInventoryBy(index, delta, reason = "快速调整") {
@@ -261,6 +261,19 @@ function adjustInventoryBy(index, delta, reason = "快速调整") {
   if (!item) return;
   const current = Number(item.meals) || 0;
   const next = Math.max(0, Number((current + delta).toFixed(2)));
+  const actualDelta = Number((next - current).toFixed(2));
+  if (!actualDelta) return;
+  item.meals = next;
+  item.lastReason = reason;
+  state.logs.push({ type: "adjust", name: item.name, amount: actualDelta, reason, date: state.selected || TODAY, meal: "" });
+  render();
+}
+
+function setInventoryMeals(index, value, reason = "手动调整") {
+  const item = state.inventory[index];
+  if (!item) return;
+  const current = Number(item.meals) || 0;
+  const next = Math.max(0, Number((Number(value) || 0).toFixed(2)));
   const actualDelta = Number((next - current).toFixed(2));
   if (!actualDelta) return;
   item.meals = next;
@@ -468,7 +481,7 @@ function syncDraftFromEditor() {
 
 function openAdjustModal(index = null) {
   const item = index === null ? null : state.inventory[index];
-  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>变动顿数</label><input id="aMeals" type="number" step="0.5" value="0.5" placeholder="增加填正数，减少填负数"></div><div class="field full"><small class="editor-hint">直接填写带正负号的顿数，例如 +0.5 或 -1；库存不会低于 0。</small></div><div class="field"><label>日期</label><input id="aDate" type="date" value="${state.selected}"></div><div class="field"><label>归属餐次</label><select id="aMeal"><option>不归属具体餐次</option><option>早饭</option><option>午饭</option><option>晚饭</option><option>宵夜</option></select></div><div class="field full"><label>调整原因</label><select id="aReason"><option>手动消耗</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
+  const body = `<div class="form-grid"><div class="field"><label>食材名称</label><input id="aName" value="${item?.name || ""}" placeholder="例如：白菜" ${item ? "readonly" : ""}></div><div class="field"><label>变动顿数</label><input id="aMeals" type="number" step="0.5" value="0.5" placeholder="增加填正数，减少填负数"></div><div class="field full"><small class="editor-hint">增加填正数，减少填负数；库存不会低于 0。日期会自动记录。</small></div><div class="field full"><label>变动原因</label><select id="aReason"><option>手动调整</option><option>实际用量与菜谱不同</option><option>盘点修正</option><option>补录采购</option><option>过期丢弃</option><option>变质丢弃</option><option>其他</option></select></div></div>`;
   openModal(modalFrame("记录库存变动", body, "保存记录", "saveAdjust", item ? `data-index="${index}"` : ""));
 }
 
@@ -681,7 +694,7 @@ document.addEventListener("click", event => {
       state.inventory[index].meals = next;
       state.inventory[index].lastReason = aReason.value;
     }
-    state.logs.push({ type: "adjust", name, amount: actualDelta, reason: aReason.value, date: aDate.value, meal: aMeal.value });
+    state.logs.push({ type: "adjust", name, amount: actualDelta, reason: aReason.value, date: state.selected || TODAY, meal: "" });
     closeModal(); render();
   }
 });
@@ -695,6 +708,10 @@ document.addEventListener("change", event => {
       const preview = document.getElementById("mealPhotoPreview");
       if (preview) preview.outerHTML = `<img class="photo-preview" id="mealPhotoPreview" src="${photo}" alt="成品照片">`;
     });
+    return;
+  }
+  if (event.target.matches("[data-stock-meals]")) {
+    setInventoryMeals(Number(event.target.dataset.stockMeals), event.target.value);
     return;
   }
   if (!event.target.matches("[data-buy]")) return;

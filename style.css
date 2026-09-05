@@ -207,6 +207,9 @@ button { cursor: pointer; border: 0; background: none; color: inherit; }
 .mobile-nav { display: none; }
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(20, 31, 28, .28); align-items: flex-end; justify-content: center; padding: 20px; z-index: 20; }
 .modal-backdrop.open { display: flex; }
+.toast { position: fixed; left: 50%; bottom: 24px; z-index: 30; max-width: min(460px, calc(100vw - 32px)); padding: 11px 15px; border: 1px solid #b9dfcf; border-radius: 10px; background: #f3fbf7; color: #24614b; box-shadow: 0 10px 30px rgba(20, 31, 28, .14); font-size: 13px; opacity: 0; pointer-events: none; transform: translate(-50%, 10px); transition: opacity .2s ease, transform .2s ease; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { border-color: #efc4bc; background: #fff5f2; color: #9a4437; }
 .modal { width: min(560px, 100%); max-height: 88vh; overflow: auto; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 20px 60px rgba(20, 31, 28, .2); }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .modal-head h3 { margin: 0; font-size: 18px; }

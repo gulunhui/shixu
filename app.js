@@ -363,6 +363,15 @@ function render() {
   renderHome(); renderShopping(); renderInventory(); renderRecipes(); renderStats(); renderRecipeWorkspace(); save();
 }
 
+let toastTimer;
+function showToast(message, type = "success") {
+  if (!appToast) return;
+  clearTimeout(toastTimer);
+  appToast.textContent = message;
+  appToast.className = `toast show${type === "error" ? " error" : ""}`;
+  toastTimer = setTimeout(() => { appToast.className = "toast"; }, 3200);
+}
+
 function openModal(content) { modal.innerHTML = content; modalBackdrop.classList.add("open"); }
 function closeModal() { modalBackdrop.classList.remove("open"); }
 function modalFrame(title, body, action, actionId, data = "") {
@@ -710,8 +719,11 @@ document.addEventListener("change", event => {
       if (!imported || !Array.isArray(imported.recipes) || !Array.isArray(imported.inventory) || !Array.isArray(imported.purchaseHistory)) throw new Error("invalid backup");
       state = { ...imported, page: "home", selected: TODAY, schemaVersion: 4, logs: imported.logs || [], mealRecords: imported.mealRecords || {}, plans: imported.plans || {}, shopping: imported.shopping || [], statsRange: imported.statsRange || "week" };
       state.recipes = state.recipes.map(normalizeRecipe); state.purchaseHistory = state.purchaseHistory.map(normalizePurchaseRecord); save(); render();
-    } catch { alert("备份文件格式不正确，无法导入。"); }
+      showToast(`导入成功：${state.recipes.length} 个菜谱、${state.inventory.length} 项库存、${state.purchaseHistory.length} 条采购记录`);
+    } catch { showToast("备份文件格式不正确，无法导入。", "error"); }
+    importFile.value = "";
   };
+  reader.onerror = () => { showToast("备份文件读取失败，请重试。", "error"); importFile.value = ""; };
   reader.readAsText(file, "utf-8");
 });
 modalBackdrop.addEventListener("click", event => { if (event.target === modalBackdrop) closeModal(); });

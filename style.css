@@ -184,6 +184,15 @@ button { cursor: pointer; border: 0; background: none; color: inherit; }
 .ingredient-editor-list { display: grid; gap: 8px; }
 .ingredient-editor-row { display: grid; grid-template-columns: 1.4fr .7fr .8fr 32px; gap: 8px; align-items: center; }
 .ingredient-editor-row input, .ingredient-editor-row select { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; outline: none; background: #fff; overflow: hidden; text-overflow: ellipsis; }
+.food-picker { position: relative; min-width: 0; }
+.food-picker-input { display: flex; min-width: 0; }
+.food-picker-input input { border-radius: 8px 0 0 8px; }
+.food-picker-toggle { width: 34px; flex: 0 0 34px; border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; background: #fff; color: var(--muted); }
+.food-picker-toggle:hover { color: var(--mint-strong); background: #f5faf7; }
+.food-options { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); max-height: 190px; overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgba(20, 31, 28, .14); z-index: 15; }
+.food-picker.open .food-options { display: grid; gap: 2px; }
+.food-option { width: 100%; padding: 8px 9px; border-radius: 6px; text-align: left; color: var(--ink); font-size: 13px; }
+.food-option:hover { background: #f2f8f5; color: var(--mint-strong); }
 .empty.compact { padding: 12px; margin-top: 10px; font-size: 12px; }
 .editor-hint { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
 .icon-danger { border: 1px solid #f1d8d2; color: #c16b58; border-radius: 8px; font-size: 18px; }
@@ -262,7 +271,7 @@ button { cursor: pointer; border: 0; background: none; color: inherit; }
   .recipe-editor-layout { padding: 17px; }
   .step-editor-body { grid-template-columns: 1fr; }
   .ingredient-editor-row { grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) 30px; gap: 8px; }
-  .ingredient-editor-row [data-part="name"] { grid-column: 1 / -1; }
+  .ingredient-editor-row > .food-picker { grid-column: 1 / -1; }
   .workspace-head { align-items: stretch; flex-direction: column; }
   .workspace-actions { justify-content: flex-end; }
   .table-wrap { overflow-x: auto; }

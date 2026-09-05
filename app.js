@@ -333,10 +333,10 @@ function renderRecipeWorkspace() {
 function renderRecipeEditor() {
   const ingredientNames = draftRecipe.ingredients.map(item => item.name).filter(Boolean);
   const catalog = foodCatalog();
-  const catalogOptions = catalog.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
+  const catalogOptions = catalog.map(name => `<button type="button" class="food-option" data-food-option-value="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
   const ingredientRows = draftRecipe.ingredients.map((item, index) => {
     return `<div class="ingredient-editor-row" data-ingredient-index="${index}">
-      <input data-part="name" list="foodCatalog" value="${escapeHtml(item.name)}" placeholder="食材名称">
+      <div class="food-picker" data-food-picker="${index}"><div class="food-picker-input"><input data-part="name" value="${escapeHtml(item.name)}" placeholder="食材名称"><button type="button" class="food-picker-toggle" title="选择历史食材" data-food-toggle="${index}">⌄</button></div><div class="food-options">${catalogOptions}</div></div>
       <input data-part="amount" type="number" step="0.1" value="${escapeHtml(item.amount)}" placeholder="用量">
       <select data-part="unit">${["克", "个", "只", "瓣", "勺", "毫升", "片", "根", "把", "适量"].map(unit => `<option ${item.unit === unit ? "selected" : ""}>${unit}</option>`).join("")}</select>
       <button class="icon-danger" title="删除食材" data-remove-ingredient="${index}">×</button>
@@ -349,7 +349,7 @@ function renderRecipeEditor() {
   recipeDetail.innerHTML = `<div class="workspace-head"><button class="ghost" data-cancel-recipe-editor>← 取消</button><div class="workspace-actions"><button class="primary" id="saveRecipeWorkspace">保存菜谱</button></div></div>
     <div class="recipe-editor-layout">
       <section class="editor-section"><div class="detail-section-head"><h3>基本信息</h3><span>尽量选择，减少填写</span></div><div class="form-grid"><div class="field"><label>菜谱名称</label><input id="rwName" value="${escapeHtml(draftRecipe.name)}" placeholder="例如：香菇青菜"></div><div class="field"><label>分类</label><select id="rwCat">${["快手菜", "家常菜", "素食", "汤羹", "自定义"].map(item => `<option ${draftRecipe.cat === item ? "selected" : ""}>${item}</option>`).join("")}</select></div><div class="field"><label>主要烹饪方式</label><select id="rwMethod">${["炒", "煮", "炖", "蒸", "炸", "烤", "凉拌"].map(item => `<option ${draftRecipe.method === item ? "selected" : ""}>${item}</option>`).join("")}</select></div><div class="field"><label>烹饪时间</label><input id="rwTime" value="${escapeHtml(draftRecipe.time)}" placeholder="例如：20分钟"></div><div class="field"><label>难度</label><select id="rwDiff">${["简单", "中等", "挑战"].map(item => `<option ${draftRecipe.difficulty === item ? "selected" : ""}>${item}</option>`).join("")}</select></div><div class="field"><label>份量</label><input id="rwServings" type="number" min="1" value="${draftRecipe.servings}"></div><div class="field full"><label>标签</label><input id="rwTags" value="${escapeHtml(draftRecipe.tags.join(","))}" placeholder="用逗号分隔"></div><div class="field full"><label>参考链接（选填）</label><input id="rwLink" type="url" value="${escapeHtml(draftRecipe.link)}" placeholder="https://"></div></div></section>
-      <section class="editor-section"><div class="detail-section-head"><div><h3>食材总表</h3><span>可选历史食材，也可直接输入新食材</span></div><button class="mini" data-add-ingredient>＋ 添加食材</button></div><datalist id="foodCatalog">${catalogOptions}</datalist><div class="ingredient-editor-list">${ingredientRows}</div><p class="editor-hint">候选来自当前库存、历史采购和已有菜谱。没有库存也可以创建菜谱。</p></section>
+      <section class="editor-section"><div class="detail-section-head"><div><h3>食材总表</h3><span>可选历史食材，也可直接输入新食材</span></div><button class="mini" data-add-ingredient>＋ 添加食材</button></div><div class="ingredient-editor-list">${ingredientRows}</div><p class="editor-hint">候选来自当前库存、历史采购和已有菜谱。没有库存也可以创建菜谱。</p></section>
       <section class="editor-section"><div class="detail-section-head"><div><h3>烹饪步骤</h3><span>每一步可选择多个食材和处理方式</span></div><button class="primary" data-add-step>＋ 添加步骤</button></div><div class="step-editor-list">${stepRows}</div></section>
     </div>`;
 }
@@ -499,6 +499,7 @@ function openStatsRangeModal() {
 }
 
 document.addEventListener("click", event => {
+  if (!event.target.closest("[data-food-picker]")) document.querySelectorAll("[data-food-picker].open").forEach(item => item.classList.remove("open"));
   const go = event.target.closest("[data-go]");
   if (go) { state.page = go.dataset.go; if (go.dataset.shoppingTarget) state.shoppingView = go.dataset.shoppingTarget; render(); return; }
   const date = event.target.closest("[data-date]");
@@ -519,6 +520,21 @@ document.addEventListener("click", event => {
   if (mealMinus) { const item = state.shopping[Number(mealMinus.dataset.mealMinus)]; item.meals = Math.max(1, Number(item.meals) - 1); render(); return; }
   const mealPlus = event.target.closest("[data-meal-plus]");
   if (mealPlus) { const item = state.shopping[Number(mealPlus.dataset.mealPlus)]; item.meals = Number(item.meals) + 1; render(); return; }
+  const foodToggle = event.target.closest("[data-food-toggle]");
+  if (foodToggle) {
+    const picker = foodToggle.closest("[data-food-picker]");
+    document.querySelectorAll("[data-food-picker].open").forEach(item => { if (item !== picker) item.classList.remove("open"); });
+    picker.classList.toggle("open");
+    return;
+  }
+  const foodOption = event.target.closest("[data-food-option-value]");
+  if (foodOption) {
+    const picker = foodOption.closest("[data-food-picker]");
+    const input = picker.querySelector('[data-part="name"]');
+    input.value = foodOption.dataset.foodOptionValue;
+    picker.classList.remove("open");
+    return;
+  }
   const waste = event.target.closest("[data-waste]");
   if (waste) { openAdjustModal(Number(waste.dataset.waste)); return; }
   const stockMinus = event.target.closest("[data-stock-minus]");
@@ -721,10 +737,19 @@ document.addEventListener("change", event => {
 });
 document.addEventListener("focusout", event => {
   if (!event.target.matches('[data-ingredient-index] [data-part="name"]')) return;
+  const picker = event.target.closest("[data-food-picker]");
   syncDraftFromEditor();
-  render();
+  if (!picker || !event.relatedTarget || !picker.contains(event.relatedTarget)) render();
 });
-document.addEventListener("input", event => { if (event.target.id === "recipeSearch") renderRecipes(); });
+document.addEventListener("input", event => {
+  if (event.target.id === "recipeSearch") renderRecipes();
+  if (event.target.matches('[data-food-picker] [data-part="name"]')) {
+    const query = event.target.value.trim().toLowerCase();
+    const picker = event.target.closest("[data-food-picker]");
+    picker.querySelectorAll("[data-food-option-value]").forEach(option => { option.hidden = query && !option.dataset.foodOptionValue.toLowerCase().includes(query); });
+    picker.classList.add("open");
+  }
+});
 document.addEventListener("change", event => {
   if (event.target.id !== "importFile") return;
   const file = event.target.files?.[0];

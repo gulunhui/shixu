@@ -336,7 +336,7 @@ function renderRecipeEditor() {
   const catalogOptions = catalog.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
   const ingredientRows = draftRecipe.ingredients.map((item, index) => {
     return `<div class="ingredient-editor-row" data-ingredient-index="${index}">
-      <input data-part="name" list="foodCatalog" value="${escapeHtml(item.name)}" placeholder="选择或输入新食材">
+      <input data-part="name" list="foodCatalog" value="${escapeHtml(item.name)}" placeholder="食材名称">
       <input data-part="amount" type="number" step="0.1" value="${escapeHtml(item.amount)}" placeholder="用量">
       <select data-part="unit">${["克", "个", "只", "瓣", "勺", "毫升", "片", "根", "把", "适量"].map(unit => `<option ${item.unit === unit ? "selected" : ""}>${unit}</option>`).join("")}</select>
       <button class="icon-danger" title="删除食材" data-remove-ingredient="${index}">×</button>
